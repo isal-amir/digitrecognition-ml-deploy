@@ -75,8 +75,8 @@ def preprocess_image(image_data):
 @app.get("/")
 def read_root():
     """
-    Root endpoint - returns welcome message
-    Access at: http://localhost:8000/
+    Root endpoint - returns welcome message #endpoint root berfungsi untuk pesan selamat datang
+    Access at: http://localhost:8000/ #dapat diakses di link local host tersebut
     """
     return {
         "message": "Welcome to Digit Recognition API!",
