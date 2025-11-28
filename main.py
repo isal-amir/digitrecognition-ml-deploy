@@ -34,7 +34,7 @@ try:
     model = joblib.load('digit_classifier_rf.pkl')
     print("✓ Model loaded successfully!")
 except FileNotFoundError:
-    print("❌ Model file not found! Please run Part 2 to train the model.")
+    print("❌ Model file not found! Please train the model.")
     model = None
 
 
