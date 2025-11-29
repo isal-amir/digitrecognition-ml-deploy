@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digit Recognition App</title>
+    <style>
+        /* Styling for our app */
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        /* Canvas styling */
+        #canvas {
+            border: 3px solid #667eea;
+            border-radius: 10px;
+            cursor: crosshair;
+            background: white;
+            touch-action: none; /* Prevents scrolling on touch devices */
+        }
+
+        /* Button styling */
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+        }
+
+        .predict-btn {
+            background: #667eea;
+            color: white;
+        }
+
+        .predict-btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+        }
+
+        .clear-btn {
+            background: #f56565;
+            color: white;
+        }
+
+        .clear-btn:hover {
+            background: #e53e3e;
+            transform: translateY(-2px);
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Result display */
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 10px;
+            min-height: 80px;
+        }
+
+        .result h2 {
+            color: #667eea;
+            margin: 0 0 10px 0;
+        }
+
+        .prediction-number {
+            font-size: 48px;
+            font-weight: bold;
+            color: #667eea;
+            margin: 10px 0;
+        }
+
+        .confidence {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .error {
+            color: #f56565;
+            font-weight: bold;
+        }
+
+        .loading {
+            color: #667eea;
+            font-style: italic;
+        }
+
+        /* Instructions */
+        .instructions {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #4a5568;
+            text-align: left;
+        }
+
+        .instructions h3 {
+            margin-top: 0;
+            color: #2d3748;
+        }
+
+        .instructions ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>✍️ Digit Recognition</h1>
+        <p class="subtitle">Draw a digit (0-9) and let AI recognize it!</p>
+
+        <!-- Canvas for drawing -->
+        <canvas id="canvas" width="280" height="280"></canvas>
+
+        <!-- Buttons -->
+        <div class="button-group">
+            <button class="predict-btn" onclick="predictDigit()">
+                🔍 Predict
+            </button>
+            <button class="clear-btn" onclick="clearCanvas()">
+                🗑️ Clear
+            </button>
+        </div>
+
+        <!-- Result display -->
+        <div class="result" id="result">
+            <p style="color: #999;">Draw a digit and click Predict!</p>
+        </div>
+
+        <!-- Instructions -->
+        <div class="instructions">
+            <h3>How to use:</h3>
+            <ul>
+                <li>Draw a digit (0-9) on the canvas above</li>
+                <li>Click "Predict" to see what AI thinks it is</li>
+                <li>Click "Clear" to draw a new digit</li>
+                <li>Make sure your FastAPI server is running!</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // ========================================
+        // PART 1: Canvas Setup and Drawing Logic
+        // ========================================
+        
+        // Get canvas element and its 2D drawing context
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Drawing state variables
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // Configure canvas drawing style
+        ctx.lineWidth = 20;  // Thick line for better recognition
+        ctx.lineCap = 'round';  // Smooth line endings
+        ctx.lineJoin = 'round';  // Smooth corners
+        ctx.strokeStyle = '#000';  // Black color
+
+        // Initialize canvas with white background
+        function initCanvas() {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+        }
+        initCanvas();
+
+        // ========================================
+        // PART 2: Mouse Event Handlers
+        // ========================================
+
+        // When mouse button is pressed down
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            // Get mouse position relative to canvas
+            const rect = canvas.getBoundingClientRect();
+            lastX = e.clientX - rect.left;
+            lastY = e.clientY - rect.top;
+        });
+
+        // When mouse is moving
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;  // Only draw if mouse is pressed
+            
+            const rect = canvas.getBoundingClientRect();
+            const currentX = e.clientX - rect.left;
+            const currentY = e.clientY - rect.top;
+            
+            // Draw line from last position to current position
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+            
+            // Update last position
+            lastX = currentX;
+            lastY = currentY;
+        });
+
+        // When mouse button is released
+        canvas.addEventListener('mouseup', () => {
+            isDrawing = false;
+        });
+
+        // When mouse leaves canvas
+        canvas.addEventListener('mouseout', () => {
+            isDrawing = false;
+        });
+
+        // ========================================
+        // PART 3: Touch Event Handlers (for mobile)
+        // ========================================
+
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();  // Prevent scrolling
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            lastX = touch.clientX - rect.left;
+            lastY = touch.clientY - rect.top;
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!isDrawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches[0];
+            const currentX = touch.clientX - rect.left;
+            const currentY = touch.clientY - rect.top;
+            
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currentX, currentY);
+            ctx.stroke();
+            
+            lastX = currentX;
+            lastY = currentY;
+        });
+
+        canvas.addEventListener('touchend', () => {
+            isDrawing = false;
+        });
+
+        // ========================================
+        // PART 4: Clear Canvas Function
+        // ========================================
+
+        function clearCanvas() {
+            // Fill entire canvas with white
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Clear result display
+            document.getElementById('result').innerHTML = 
+                '<p style="color: #999;">Draw a digit and click Predict!</p>';
+        }
+
+        // ========================================
+        // PART 5: Main Prediction Function
+        // ========================================
+
+        async function predictDigit() {
+            // Show loading state
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p class="loading">🔄 Analyzing your drawing...</p>';
+            
+            try {
+                // Convert canvas to base64 image
+                // toDataURL() creates a string like: "data:image/png;base64,iVBORw0KG..."
+                const imageData = canvas.toDataURL('image/png');
+                
+                // Send POST request to our FastAPI backend
+                const response = await fetch('http://localhost:8000/predict/base64', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: imageData  // Send base64 image
+                    })
+                });
+                
+                // Check if request was successful
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Parse JSON response from API
+                const result = await response.json();
+                
+                // Display the result
+                displayResult(result);
+                
+            } catch (error) {
+                // Handle errors (e.g., API not running, network issues)
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <p class="error">❌ Error!</p>
+                    <p style="font-size: 14px; color: #666;">
+                        ${error.message}<br>
+                        Make sure your FastAPI server is running on port 8000
+                    </p>
+                `;
+            }
+        }
+
+        // ========================================
+        // PART 6: Display Result Function
+        // ========================================
+
+        function displayResult(result) {
+            const resultDiv = document.getElementById('result');
+            
+            // Extract prediction and confidence
+            const prediction = result.prediction;
+            const confidence = (result.confidence * 100).toFixed(1);
+            
+            // Create HTML to display result
+            resultDiv.innerHTML = `
+                <h2>Prediction:</h2>
+                <div class="prediction-number">${prediction}</div>
+                <p class="confidence">Confidence: ${confidence}%</p>
+            `;
+            
+            // Log all probabilities to console (for debugging)
+            console.log('All probabilities:', result.all_probabilities);
+        }
+
+        // ========================================
+        // PART 7: Keyboard Shortcuts
+        // ========================================
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                predictDigit();
+            } else if (e.key === 'Escape' || e.key === 'c') {
+                clearCanvas();
+            }
+        });
+
+        // Show instructions in console
+        console.log('%c🎨 Digit Recognition App', 'font-size: 20px; color: #667eea; font-weight: bold;');
+        console.log('Keyboard shortcuts:');
+        console.log('- Enter: Predict');
+        console.log('- Esc or C: Clear canvas');
+    </script>
+</body>
+</html>
