@@ -29,3 +29,20 @@ def get_book(book_name:str):
             return b
     raise HTTPException(status_code=404, detail="Book not found")
 
+@app.put("/books/{book_name}", summary="Update stok buku")
+def update_book_stock(book_name:str, stock:int):
+    # cari buku dengan for loop
+    for b in books:
+        if b.name.lower() == book_name.lower():
+            b.stock = stock
+            return {"message": "Book stock updated", "book": b}
+    raise HTTPException(status_code=404, detail = "Book not found")
+
+@app.delete("/books/{book_name}", summary="hapus buku")
+def delete_book(book_name:str):
+    for b in books:
+        if b.name.lower() == book_name.lower():
+            books.remove(b)
+            return {"message": "Book deleted"}
+    raise HTTPException(status_code=404, detail="Book not found")
+
